@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/feeds"
@@ -23,9 +24,7 @@ type Letter struct {
 	} `json:"data"`
 }
 
-func main() {
-
-	url := "https://www.lenovo-smb.com/productletter/letterlistjson.php?key1=&key2=&key3=&key4=&key5=&key6=&key7=&sdstring=TVRveU9qTTZORG8xT2pFd09qWTZOem80T2prPTo6TWpBeU1DMHdNeTB4Tmc9PTpNakF5TUMwd05pMHhOQT09OjpNQT09&_dc=1592061834856&page=1&start=0"
+func makeRSS(url string) string {
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -56,7 +55,6 @@ func main() {
 
 	if err := json.Unmarshal(body, letters); err != nil {
 		fmt.Println("JSON Unmarshal error:", err)
-		return
 	}
 	//fmt.Printf("Total: %v \n", letters.Total)
 
@@ -92,6 +90,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(rss, "\n")
+	return rss
+}
 
+func handleRequests(rss string) {
+	http.HandleFunc("/rss", func(w http.ResponseWriter, r *http.Request) {
+
+		ua := r.Header.Get("User-Agent")
+		fmt.Printf("user agent is: %s \n", ua)
+		invocationid := r.Header.Get("X-Azure-Functions-InvocationId")
+		fmt.Printf("invocationid is: %s \n", invocationid)
+		fmt.Fprintf(w, rss)
+	})
+	httpInvokerPort, exists := os.LookupEnv("FUNCTIONS_HTTPWORKER_PORT")
+	if exists {
+		fmt.Println("FUNCTIONS_HTTPWORKER_PORT: " + httpInvokerPort)
+	}
+	log.Println("Go server Listening...on httpInvokerPort:", httpInvokerPort)
+	log.Fatal(http.ListenAndServe(":"+httpInvokerPort, nil))
+}
+
+func main() {
+
+	url := "https://www.lenovo-smb.com/productletter/letterlistjson.php?key1=&key2=&key3=&key4=&key5=&key6=&key7=&sdstring=TVRveU9qTTZORG8xT2pFd09qWTZOem80T2prPTo6TWpBeU1DMHdNeTB4Tmc9PTpNakF5TUMwd05pMHhOQT09OjpNQT09&_dc=1592061834856&page=1&start=0"
+
+	rss := makeRSS(url)
+
+	handleRequests(rss)
 }
